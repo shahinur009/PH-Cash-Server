@@ -71,7 +71,7 @@ async function run() {
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-      const balance = role === "User" ? 40 : 100000;
+      const balance = role === "User";
 
       await userCollection.insertOne({
         username,
@@ -435,7 +435,7 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const userData = await userCollection.findOne(query);
       if (userData.role === "User") {
-        const sUpdateBalance = parseInt(userData.balance + 0);
+        const sUpdateBalance = parseInt(userData.balance + 40);
         // console.log(transactionData?.totalAmount, updateBalance);
         const userUpdateBalance = {
           $set: { balance: sUpdateBalance },
