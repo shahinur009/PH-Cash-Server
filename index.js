@@ -33,17 +33,13 @@ const verifyToken = (req, res, next) => {
   // console.log('token console from 34', token);
   if (!token) return res.status(401).send({ message: "t Un Authorize" });
   if (token) {
-    jwt.verify(
-      token,
-      ded2478611516f58ee06599f801f0fcecae5bbd5e0c74b6bfa727da09e5acba7bdb7fb20937754d4c6369d8448ebd4145b9be94dde6c6728ca6d3c02dfc7716d,
-      (err, decoded) => {
-        if (err) {
-          return res.status(401).send({ message: "Un Authorize  t " });
-        }
-        req.user = decoded;
-        next();
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).send({ message: "Un Authorize  t " });
       }
-    );
+      req.user = decoded;
+      next();
+    });
   }
 };
 
