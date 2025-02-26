@@ -14,7 +14,7 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "https://ph-kash-client.vercel.app"],
     credentials: true,
   })
 );
@@ -24,21 +24,21 @@ app.use(cookieParser());
 
 // verify token
 const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  const token =
+    req.headers.authorization && req.headers.authorization.split(" ")[1];
+  console.log("39:", req.cookies);
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Unauthorized: No token provided" });
+  console.log("token console from 34", token);
+  if (!token) return res.status(401).send({ message: "t Un Authorize" });
+  if (token) {
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).send({ message: "Un Authorize  t " });
+      }
+      req.user = decoded;
+      next();
+    });
   }
-
-  const token = authHeader.split(" ")[1];
-
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: "Forbidden: Invalid token" });
-    }
-    req.user = decoded;
-    next();
-  });
 };
 
 const client = new MongoClient(uri, {
