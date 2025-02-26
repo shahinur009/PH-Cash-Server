@@ -62,189 +62,214 @@ async function run() {
 
     app.post("/register", async (req, res) => {
       const { username, email, password, mobileNo, nid, role } = req.body;
-      // console.log(req.body);
-      try {
-        const user = await userCollection.findOne({
-          $or: [{ email }, { mobileNo }, { nid }],
-        });
 
-        if (user) {
-          return res.status(400).json({ message: "User already exists" });
-        }
-
-        console.log("Registering new user");
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-        await userCollection.insertOne({
-          username,
-          password: hashedPassword,
-          email,
-          mobileNo,
-          role,
-          nid,
-          status: "pending",
-          timestamp: Date.now(),
-          balance: 0,
-        });
-
-        res
-          .status(201)
-          .json({ success: true, message: "User registered successfully" });
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Internal server error" });
+      const user = await userCollection.findOne({
+        $or: [{ email }, { mobileNo }, { nid }],
+      });
+      if (user) {
+        return res.status(400).json({ message: "User already exists" });
       }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const balance = role === "User" ? 40 : 100000;
+
+      await userCollection.insertOne({
+        username,
+        password: hashedPassword,
+        email,
+        mobileNo,
+        role,
+        nid,
+        status: "pending",
+        timestamp: Date.now(),
+        balance,
+      });
+
+      res
+        .status(201)
+        .json({ success: true, message: "User registered successfully" });
     });
 
     //login user
     app.post("/login", async (req, res) => {
       const { email, password } = req.body;
-      // console.log("first", req.body);
-      try {
-        const user = await userCollection.findOne({ email });
-        if (!user) {
-          return res.send({ success: false, message: "Invalid credentials" });
-        }
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        // console.log(isMatch);
-
-        if (!isMatch) {
-          return res.send({ success: false, message: "Invalid credentials" });
-        }
-
-        const { password: pass, ...rest } = user;
-        const token = jwt.sign({ ...rest }, JWT_SECRET, { expiresIn: "1h" });
-        res.send({ token, success: true, message: "Successfully Logged In" });
-      } catch (error) {
-        res.send({ message: "Internal server error when login" });
+      const user = await userCollection.findOne({ email });
+      if (!user) {
+        return res.status(400).json({ message: "Invalid credentials" });
       }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
+
+      const token = jwt.sign(
+        { userId: user._id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+      res.json({ success: true, message: "Login successful", token });
     });
 
     // <>>>>>>>>>>==========><> user activity <>>>>>>=======<>>><>
 
     //<>>>>>>>>>>==========><> send Money =======>>>>>>>>>>>>>>>>>>>>>>
 
-    app.post("/send-Money", async (req, res) => {
-      const transactionData = req.body;
-      const user = await userCollection.findOne({
-        mobileNo: transactionData.mobileNo,
+    app.post("/send-money", async (req, res) => {
+      const { senderEmail, receiverMobile, amount } = req.body;
+
+      if (amount < 50) {
+        return res.status(400).json({ message: "Minimum amount is 50 taka" });
+      }
+
+      const sender = await userCollection.findOne({ email: senderEmail });
+      const receiver = await userCollection.findOne({
+        mobileNo: receiverMobile,
       });
-      const sender = await userCollection.findOne({
-        email: transactionData.senderEmail,
-      });
-      if (user.role !== "User") {
-        return res.send({ success: false, message: "Receiver is not a User" });
+
+      if (!sender || !receiver) {
+        return res.status(400).json({ message: "Invalid sender or receiver" });
       }
 
-      // console.log(sender);
-      if (!user) {
-        return res.send({ success: false, message: "Invalid credentials" });
+      if (sender.balance < amount) {
+        return res.status(400).json({ message: "Insufficient balance" });
       }
 
-      const isMatch = await bcrypt.compare(
-        transactionData.password,
-        sender.password
+      const fee = amount > 100 ? 5 : 0;
+      const totalAmount = amount + fee;
+
+      // Deduct from sender
+      await userCollection.updateOne(
+        { email: senderEmail },
+        { $inc: { balance: -totalAmount } }
       );
 
-      if (!isMatch) {
-        return res.send({ success: false, message: "Invalid credentials" });
-      }
-      const updateBalance = parseInt(
-        user.balance + transactionData.totalAmount
+      // Add to receiver
+      await userCollection.updateOne(
+        { mobileNo: receiverMobile },
+        { $inc: { balance: amount } }
       );
-      const sUpdateBalance = parseInt(
-        sender.balance - transactionData.totalAmount
+
+      // Add fee to admin
+      await userCollection.updateOne(
+        { role: "Admin" },
+        { $inc: { balance: fee } }
       );
-      // console.log(transactionData?.totalAmount, updateBalance);
-      const senderUpdateBalance = {
-        $set: { balance: sUpdateBalance },
-      };
-      const updateData = {
-        $set: {
-          balance: updateBalance,
-          receiverEmail: user.email,
-        },
-      };
-      const transData = {
-        ...transactionData,
-        receiverEmail: user.email,
+
+      // Record transaction
+      const transaction = {
+        senderEmail,
+        receiverMobile,
+        amount,
+        fee,
         type: "Send Money",
+        transactionId: new ObjectId(),
+        date: new Date(),
       };
-      const id = transactionData._id;
-      const query = { mobileNo: transactionData.mobileNo };
-      const receiverBalance = await userCollection.updateOne(query, updateData);
-      const senderBalance = await userCollection.updateOne(
-        { email: transactionData.senderEmail },
-        senderUpdateBalance
-      );
-      const result = await transactionCollection.insertOne(transData);
-      res.send(result);
+      await transactionCollection.insertOne(transaction);
+
+      res.json({ success: true, message: "Money sent successfully" });
     });
 
     //<>>>>>>>=========><>Cash out <><==============>>>>>>>>>>>>>>>>>>>>>>>>><>
 
-    app.post("/cash-out", async (req, res) => {
-      const transactionData = req.body;
-      const user = await userCollection.findOne({
-        mobileNo: transactionData.mobileNo,
-      });
-      const sender = await userCollection.findOne({
-        email: transactionData.senderEmail,
-      });
-      if (user.role !== "Agent") {
-        return res.send({ success: false, message: "Receiver is not a Agent" });
+    app.post("/cash-out", verifyToken, async (req, res) => {
+      const { userEmail, agentMobile, amount } = req.body;
+
+      if (amount < 50) {
+        return res.status(400).json({ message: "Minimum amount is 50 taka" });
       }
 
-      // console.log(sender);
-      if (!user) {
-        return res.send({ success: false, message: "Invalid credentials" });
+      const user = await userCollection.findOne({ email: userEmail });
+      const agent = await userCollection.findOne({
+        mobileNo: agentMobile,
+        role: "Agent",
+      });
+
+      if (!user || !agent) {
+        return res.status(400).json({ message: "Invalid user or agent" });
       }
 
-      const isMatch = await bcrypt.compare(
-        transactionData.password,
-        sender.password
+      if (user.balance < amount) {
+        return res.status(400).json({ message: "Insufficient balance" });
+      }
+
+      const fee = amount * 0.015;
+      const agentEarnings = amount * 0.01;
+      const adminEarnings = amount * 0.005;
+
+      // Deduct from user
+      await userCollection.updateOne(
+        { email: userEmail },
+        { $inc: { balance: -(amount + fee) } }
       );
 
-      if (!isMatch) {
-        return res.send({ success: false, message: "Invalid credentials" });
-      }
-      const transData = {
-        ...transactionData,
-        receiverEmail: user.email,
+      // Add to agent
+      await userCollection.updateOne(
+        { mobileNo: agentMobile },
+        { $inc: { balance: amount, income: agentEarnings } }
+      );
+
+      // Add to admin
+      await userCollection.updateOne(
+        { role: "Admin" },
+        { $inc: { balance: adminEarnings } }
+      );
+
+      // Record transaction
+      const transaction = {
+        userEmail,
+        agentMobile,
+        amount,
+        fee,
+        type: "Cash Out",
+        transactionId: new ObjectId(),
+        date: new Date(),
       };
-      const result = await requestCollection.insertOne(transData);
-      res.send(result);
+      await transactionCollection.insertOne(transaction);
+
+      res.json({ success: true, message: "Cash-out successful" });
     });
 
     //cash -in
 
-    app.post("/cash-in", async (req, res) => {
-      const transactionData = req.body;
-      const user = await userCollection.findOne({
-        mobileNo: transactionData.mobileNo,
+    app.post("/cash-in", verifyToken, async (req, res) => {
+      const { userMobile, agentEmail, amount, agentPin } = req.body;
+
+      const user = await userCollection.findOne({ mobileNo: userMobile });
+      const agent = await userCollection.findOne({
+        email: agentEmail,
+        role: "Agent",
       });
-      const sender = await userCollection.findOne({
-        email: transactionData.senderEmail,
-      });
-      if (user.role !== "Agent") {
-        return res.send({
-          success: false,
-          message: "Receiver is not a Agent",
-        });
+
+      if (!user || !agent) {
+        return res.status(400).json({ message: "Invalid user or agent" });
       }
 
-      // console.log(sender);
-      if (!user) {
-        return res.send({ success: false, message: "Invalid credentials" });
+      const isPinValid = await bcrypt.compare(agentPin, agent.pin);
+      if (!isPinValid) {
+        return res.status(400).json({ message: "Invalid agent PIN" });
       }
 
-      const transData = {
-        ...transactionData,
-        receiverEmail: user.email,
+      // Add to user
+      await userCollection.updateOne(
+        { mobileNo: userMobile },
+        { $inc: { balance: amount } }
+      );
+
+      // Record transaction
+      const transaction = {
+        userMobile,
+        agentEmail,
+        amount,
+        type: "Cash In",
+        transactionId: new ObjectId(),
+        date: new Date(),
       };
-      const result = await requestCollection.insertOne(transData);
-      res.send(result);
+      await transactionCollection.insertOne(transaction);
+
+      res.json({ success: true, message: "Cash-in successful" });
     });
 
     //<>>>>=========agent transaction-management=======>>>>>>>>>>>>>>>>>
@@ -417,7 +442,7 @@ async function run() {
         };
         const user = await userCollection.updateOne(query, userUpdateBalance);
       } else {
-        const sUpdateBalance = parseInt(userData.balance + 10000);
+        const sUpdateBalance = parseInt(userData.balance + 100000);
         // console.log(transactionData?.totalAmount, updateBalance);
         const userUpdateBalance = {
           $set: { balance: sUpdateBalance },
@@ -435,13 +460,15 @@ async function run() {
 
     //User balance inquiry ==================>>>>>>>>>>>>>
 
-    app.get("/user-balance/:email", async (req, res) => {
+    app.get("/user-balance/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
 
-      const query = { email: email };
-      // console.log(query);
-      const result = await userCollection.findOne(query);
-      res.send(result);
+      const user = await userCollection.findOne({ email });
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({ balance: user.balance });
     });
   } finally {
   }
