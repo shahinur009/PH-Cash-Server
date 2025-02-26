@@ -261,8 +261,8 @@ async function run() {
 
         // Record Transaction
         const transaction = {
-          userMobile: mobileNo,
-          agentEmail: senderEmail,
+          mobileNo,
+          senderEmail,
           amount: parseInt(amount),
           type: "Cash In",
           transactionId: new ObjectId(),
