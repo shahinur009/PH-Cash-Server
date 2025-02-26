@@ -12,7 +12,13 @@ const JWT_SECRET = process.env.ACCESS_TOKEN_SECRET || "your_jwt_secret";
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6ypdnj9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -45,7 +51,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     //database collections are here
-    const database = client.db("PH-Cash");
+    const database = client.db("PHS-Cash");
     const userCollection = database.collection("users");
     const transactionCollection = database.collection("transaction");
     const requestCollection = database.collection("request");
@@ -89,6 +95,7 @@ async function run() {
     //login user
     app.post("/login", async (req, res) => {
       const { email, password } = req.body;
+      // console.log("first", req.body);
       try {
         const user = await userCollection.findOne({ email });
         if (!user) {
@@ -369,15 +376,14 @@ async function run() {
 
     //<======>>>user-management-here========================<<<<<<<<>
 
-    app.get("/user-management", async (req, res) => {
-      const search = req.query.search;
-      console.log(search);
-      let query = {
-        username: { $regex: search, $options: "i" },
-      };
+    app.get("/user-management1", async (req, res) => {
+      console.log("kire");
+      const search = req?.query?.search || "";
 
+      let query = search ? { username: { $regex: search, $options: "i" } } : {};
+      console.log("query", query);
       const result = await userCollection.find(query).toArray();
-
+      console.log("result", result);
       res.send(result);
     });
 
