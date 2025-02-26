@@ -174,7 +174,7 @@ async function run() {
 
     //<>>>>>>>=========><>Cash out <><==============>>>>>>>>>>>>>>>>>>>>>>>>><>
 
-    app.post("/cash-out", verifyToken, async (req, res) => {
+    app.post("/cash-out", async (req, res) => {
       const { userEmail, agentMobile, amount } = req.body;
 
       if (amount < 50) {
@@ -234,7 +234,7 @@ async function run() {
 
     //cash -in
 
-    app.post("/cash-in", verifyToken, async (req, res) => {
+    app.post("/cash-in", async (req, res) => {
       const { userMobile, agentEmail, amount, agentPin } = req.body;
 
       const user = await userCollection.findOne({ mobileNo: userMobile });
@@ -460,7 +460,7 @@ async function run() {
 
     //User balance inquiry ==================>>>>>>>>>>>>>
 
-    app.get("/user-balance/:email", verifyToken, async (req, res) => {
+    app.get("/user-balance/:email", async (req, res) => {
       const email = req.params.email;
 
       const user = await userCollection.findOne({ email });
