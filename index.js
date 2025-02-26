@@ -8,9 +8,7 @@ require("dotenv").config();
 const config = process.env;
 const PORT = process.env.PORT || 5000;
 const app = express();
-const JWT_SECRET =
-  ded2478611516f58ee06599f801f0fcecae5bbd5e0c74b6bfa727da09e5acba7bdb7fb20937754d4c6369d8448ebd4145b9be94dde6c6728ca6d3c02dfc7716d ||
-  "your_jwt_secret";
+const JWT_SECRET = process.env.ACCESS_TOKEN_SECRET || "your_jwt_secret";
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6ypdnj9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -33,7 +31,7 @@ const verifyToken = (req, res, next) => {
   // console.log('token console from 34', token);
   if (!token) return res.status(401).send({ message: "t Un Authorize" });
   if (token) {
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
       if (err) {
         return res.status(401).send({ message: "Un Authorize  t " });
       }
