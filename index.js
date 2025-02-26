@@ -435,7 +435,7 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const userData = await userCollection.findOne(query);
       if (userData.role === "User") {
-        const sUpdateBalance = parseInt(userData.balance + 40);
+        const sUpdateBalance = parseInt(userData.balance + 0);
         // console.log(transactionData?.totalAmount, updateBalance);
         const userUpdateBalance = {
           $set: { balance: sUpdateBalance },
