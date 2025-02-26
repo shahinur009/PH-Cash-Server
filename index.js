@@ -26,9 +26,9 @@ app.use(cookieParser());
 const verifyToken = (req, res, next) => {
   const token =
     req.headers.authorization && req.headers.authorization.split(" ")[1];
-  console.log("39:", req.cookies);
+  // console.log("39:", req.cookies);
 
-  console.log("token console from 34", token);
+  // console.log("token console from 34", token);
   if (!token) return res.status(401).send({ message: "t Un Authorize" });
   if (token) {
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
@@ -58,7 +58,7 @@ async function run() {
 
     app.post("/register", async (req, res) => {
       const { username, email, password, mobileNo, nid, role } = req.body;
-      console.log(req.body);
+      // console.log(req.body);
       try {
         const user = await userCollection.findOne({
           $or: [{ email }, { mobileNo }, { nid }],
@@ -103,7 +103,7 @@ async function run() {
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
-        console.log(isMatch);
+        // console.log(isMatch);
 
         if (!isMatch) {
           return res.send({ success: false, message: "Invalid credentials" });
@@ -244,7 +244,7 @@ async function run() {
     });
 
     //<>>>>=========agent transaction-management=======>>>>>>>>>>>>>>>>>
-    app.get("/transaction-management/:email", verifyToken, async (req, res) => {
+    app.get("/transaction-management/:email", async (req, res) => {
       const email = req.params.email;
       const query = {
         receiverEmail: email,
@@ -337,7 +337,7 @@ async function run() {
     });
 
     //<>>>>>>>>>>>>>>>agent transaction-management=======<<<<<<<<<<>
-    app.get("/transaction-history/:email", verifyToken, async (req, res) => {
+    app.get("/transaction-history/:email", async (req, res) => {
       const email = req.params.email;
       const userData = await userCollection.findOne({ email });
       const query1 = {
@@ -368,7 +368,7 @@ async function run() {
     //-----------------admin functionality----------------
     //<>>>>>>===system-monitoring-here =======<<<<<<<>
 
-    app.get("/system-monitoring", verifyToken, async (req, res) => {
+    app.get("/system-monitoring", async (req, res) => {
       // console.log(query);
       const result = await transactionCollection.find().toArray();
       res.send(result);
@@ -377,13 +377,13 @@ async function run() {
     //<======>>>user-management-here========================<<<<<<<<>
 
     app.get("/user-management1", async (req, res) => {
-      console.log("kire");
+      // console.log("kire");
       const search = req?.query?.search || "";
 
       let query = search ? { username: { $regex: search, $options: "i" } } : {};
-      console.log("query", query);
+      // console.log("query", query);
       const result = await userCollection.find(query).toArray();
-      console.log("result", result);
+      // console.log("result", result);
       res.send(result);
     });
 
