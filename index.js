@@ -235,41 +235,50 @@ async function run() {
     //cash -in
 
     app.post("/cash-in", async (req, res) => {
-      const { userMobile, agentEmail, amount, agentPin } = req.body;
+      try {
+        const { mobileNo, amount, senderEmail } = req.body;
 
-      const user = await userCollection.findOne({ mobileNo: userMobile });
-      const agent = await userCollection.findOne({
-        email: agentEmail,
-        role: "Agent",
-      });
+        // Validate Input
+        if (!mobileNo || !amount || !senderEmail) {
+          return res.status(400).json({ message: "Missing required fields" });
+        }
 
-      if (!user || !agent) {
-        return res.status(400).json({ message: "Invalid user or agent" });
+        const user = await userCollection.findOne({ mobileNo });
+        const agent = await userCollection.findOne({
+          email: senderEmail,
+          role: "Agent",
+        });
+
+        if (!user || !agent) {
+          return res.status(400).json({ message: "Invalid user or agent" });
+        }
+
+        // Update User Balance
+        await userCollection.updateOne(
+          { mobileNo },
+          { $inc: { balance: parseInt(amount) } }
+        );
+
+        // Record Transaction
+        const transaction = {
+          userMobile: mobileNo,
+          agentEmail: senderEmail,
+          amount: parseInt(amount),
+          type: "Cash In",
+          transactionId: new ObjectId(),
+          date: new Date(),
+        };
+        const result = await transactionCollection.insertOne(transaction);
+
+        res.json({
+          success: true,
+          insertedId: result.insertedId,
+          message: "Cash-in successful",
+        });
+      } catch (error) {
+        console.error("Cash-In Error:", error);
+        res.status(500).json({ message: "Internal Server Error" });
       }
-
-      const isPinValid = await bcrypt.compare(agentPin, agent.pin);
-      if (!isPinValid) {
-        return res.status(400).json({ message: "Invalid agent PIN" });
-      }
-
-      // Add to user
-      await userCollection.updateOne(
-        { mobileNo: userMobile },
-        { $inc: { balance: amount } }
-      );
-
-      // Record transaction
-      const transaction = {
-        userMobile,
-        agentEmail,
-        amount,
-        type: "Cash In",
-        transactionId: new ObjectId(),
-        date: new Date(),
-      };
-      await transactionCollection.insertOne(transaction);
-
-      res.json({ success: true, message: "Cash-in successful" });
     });
 
     //<>>>>=========agent transaction-management=======>>>>>>>>>>>>>>>>>
